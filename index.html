@@ -213,26 +213,48 @@ const bubbles = [];
 const octo = new THREE.Group();
 {
   const skin = new THREE.MeshLambertMaterial({ color: 0xf58a9b });
+  const skinDark = new THREE.MeshLambertMaterial({ color: 0xdd6f83 });
   const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const dark = new THREE.MeshLambertMaterial({ color: 0x33262a });
   const pink = new THREE.MeshLambertMaterial({ color: 0xffc2d4 });
-  const S = (r, m) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), m);
-  const bodyO = S(0.85, skin); bodyO.scale.set(1, 1.15, 0.95); bodyO.position.y = 0.55;
-  const eyeWL = S(0.16, white); eyeWL.position.set(0.3, 0.95, -0.72);
-  const eyeWR = S(0.16, white); eyeWR.position.set(-0.3, 0.95, -0.72);
-  const eyeL = S(0.07, dark); eyeL.position.set(0.3, 0.95, -0.86);
-  const eyeR = S(0.07, dark); eyeR.position.set(-0.3, 0.95, -0.86);
-  const blushL = S(0.09, pink); blushL.scale.z = 0.4; blushL.position.set(0.55, 0.72, -0.62);
-  const blushR = S(0.09, pink); blushR.scale.z = 0.4; blushR.position.set(-0.55, 0.72, -0.62);
+  const S = (r, m) => new THREE.Mesh(new THREE.SphereGeometry(r, 16, 14), m);
+
+  // 커다란 둥근 외투막(머리 벌브) — 문어의 상징
+  const mantle = S(0.92, skin); mantle.scale.set(1.04, 1.3, 1.0); mantle.position.y = 0.82;
+  const mantleTop = S(0.52, skin); mantleTop.scale.set(1, 0.85, 1); mantleTop.position.y = 1.78;
+  // 툭 튀어나온 눈두덩 (문어 눈은 머리 밖으로 볼록)
+  const eyeBulgeL = S(0.3, skin); eyeBulgeL.scale.set(0.9, 1, 0.9); eyeBulgeL.position.set(0.44, 1.08, -0.46);
+  const eyeBulgeR = S(0.3, skin); eyeBulgeR.scale.set(0.9, 1, 0.9); eyeBulgeR.position.set(-0.44, 1.08, -0.46);
+  const eyeWL = S(0.17, white); eyeWL.position.set(0.47, 1.1, -0.7);
+  const eyeWR = S(0.17, white); eyeWR.position.set(-0.47, 1.1, -0.7);
+  const eyeL = S(0.08, dark); eyeL.position.set(0.48, 1.08, -0.85);
+  const eyeR = S(0.08, dark); eyeR.position.set(-0.48, 1.08, -0.85);
+  const glL = S(0.032, white); glL.position.set(0.53, 1.15, -0.9);
+  const glR = S(0.032, white); glR.position.set(-0.42, 1.15, -0.9);
+  const blushL = S(0.1, pink); blushL.scale.z = 0.4; blushL.position.set(0.66, 0.82, -0.55);
+  const blushR = S(0.1, pink); blushR.scale.z = 0.4; blushR.position.set(-0.66, 0.82, -0.55);
+
+  // 물 위로 살짝 드러난 통통하게 말린 팔 끝 (촉수 아님 — 둥글게 감긴 팔의 윗부분)
+  const coilPositions = [
+    [0.55, 0.06, 0.72], [-0.55, 0.06, 0.72],
+    [0.86, 0.03, 0.08], [-0.86, 0.03, 0.08],
+    [0.48, 0.02, -0.62], [-0.48, 0.02, -0.62],
+  ];
+  for (const [x, y, z] of coilPositions) {
+    const coil = S(0.27, skin); coil.scale.set(1, 0.68, 1); coil.position.set(x, y, z);
+    const tip = S(0.14, skinDark); tip.scale.set(1, 0.7, 1); tip.position.set(x * 0.82, y + 0.12, z * 0.82);
+    octo.add(coil, tip);
+  }
+
   // 분홍 앞치마 (오리를 향한 쪽 = -z)
-  const apron = new THREE.Mesh(new THREE.SphereGeometry(0.87, 14, 12, 0, Math.PI), new THREE.MeshLambertMaterial({ color: 0xffb6c8 }));
-  apron.scale.set(0.82, 0.75, 0.7);
+  const apron = new THREE.Mesh(new THREE.SphereGeometry(0.94, 16, 14, 0, Math.PI), new THREE.MeshLambertMaterial({ color: 0xffb6c8 }));
+  apron.scale.set(0.82, 0.9, 0.7);
   apron.rotation.y = Math.PI;
-  apron.position.set(0, 0.32, -0.13);
+  apron.position.set(0, 0.5, -0.12);
   const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.26, 0.06), new THREE.MeshLambertMaterial({ color: 0xff9db8 }));
-  pocket.position.set(0, 0.28, -0.79);
+  pocket.position.set(0, 0.45, -0.82);
   // 후라이팬 팔
-  const arm = S(0.16, skin); arm.position.set(0.85, 0.75, -0.3);
+  const arm = S(0.16, skin); arm.position.set(0.85, 0.85, -0.3);
   const panG = new THREE.Group();
   const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.09, 18), new THREE.MeshLambertMaterial({ color: 0x4a4a52 }));
   const panIn = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 18), new THREE.MeshLambertMaterial({ color: 0x6a6a72 }));
@@ -240,10 +262,10 @@ const octo = new THREE.Group();
   const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.55), new THREE.MeshLambertMaterial({ color: 0x7a4e2c }));
   handle.position.z = 0.45;
   panG.add(pan, panIn, handle);
-  panG.position.set(1.1, 1.15, -0.35);
+  panG.position.set(1.1, 1.25, -0.35);
   panG.rotation.set(-0.7, 0, -0.3);
-  const arm2 = S(0.16, skin); arm2.position.set(-0.85, 0.6, -0.2);
-  octo.add(bodyO, eyeWL, eyeWR, eyeL, eyeR, blushL, blushR, apron, pocket, arm, panG, arm2);
+  const arm2 = S(0.16, skin); arm2.position.set(-0.85, 0.68, -0.2);
+  octo.add(mantle, mantleTop, eyeBulgeL, eyeBulgeR, eyeWL, eyeWR, eyeL, eyeR, glL, glR, blushL, blushR, apron, pocket, arm, panG, arm2);
   octo.userData.pan = panG;
 }
 octo.scale.setScalar(0.8);
