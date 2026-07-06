@@ -344,6 +344,7 @@ let graceT = 0;
 let jellyCount = 0, colorIdx = 0;
 let best = +(localStorage.getItem('duckrun-best') || 0);
 let fxJump = -1, fxDive = -1, fxYum = -1;
+let panSwingT = 99, nextSwing = 2.5; // 후라이팬 휘두르기 타이머
 document.getElementById('best').textContent = best;
 
 // ---------- 스폰 ----------
@@ -488,7 +489,9 @@ startBtn.disabled = false;
 startBtn.textContent = '도망 시작!';
 if (sessionStorage.getItem('duckrun-skip')) { sessionStorage.removeItem('duckrun-skip'); startGame(); }
 
-window.__dbg = () => ({ started, gameOver, jellyCount, lane, speed: +speed.toFixed(1), jumping, diving, flying, jumpY: +jumpY.toFixed(2), baseY: +baseY.toFixed(2) });
+window.__dbg = () => ({ started, gameOver, jellyCount, lane, colorIdx, fast: (colorIdx === 1 || colorIdx === 3), speed: +speed.toFixed(1), effSpeed: +(speed * ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1)).toFixed(1), jumping, diving, flying, jumpY: +jumpY.toFixed(2), baseY: +baseY.toFixed(2), octoRotY: +octo.rotation.y.toFixed(2), panX: +octo.userData.pan.rotation.x.toFixed(2) });
+window.__setColor = i => { colorIdx = i % DUCK_COLORS.length; duckMats.body.color.set(DUCK_COLORS[colorIdx]); duckMats.wing.color.set(DUCK_COLORS[colorIdx]).multiplyScalar(0.92); };
+window.__swing = () => { panSwingT = 0; };
 window.__grant = n => { for (let i = 0; i < n; i++) grantJelly(); };
 
 // ---------- 메인 루프 ----------
@@ -502,20 +505,22 @@ function frame() {
   const running = started && !gameOver;
   if (running) {
     speed = Math.min(24, speed + dt * 0.12);
-    traveled += speed * dt;
+    // 오리 색에 따른 속도: 분홍(1)·하늘(3)일 때만 1.25배, 나머지(노랑·보라·연두)는 기본
+    const effSpeed = speed * ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1);
+    traveled += effSpeed * dt;
 
     // 스폰
-    distSinceSpawn += speed * dt;
+    distSinceSpawn += effSpeed * dt;
     if (distSinceSpawn >= nextGap) {
       const len = spawnPattern();
       distSinceSpawn = 0;
-      nextGap = len + 13 + Math.random() * 14 + speed * 0.35;
+      nextGap = len + 13 + Math.random() * 14 + effSpeed * 0.35;
     }
 
     // 오브젝트 이동
-    for (const o of obstacles) { o.z += speed * dt; o.mesh.position.z = o.z; }
+    for (const o of obstacles) { o.z += effSpeed * dt; o.mesh.position.z = o.z; }
     for (const j of jellies) {
-      j.z += speed * dt; j.mesh.position.z = j.z;
+      j.z += effSpeed * dt; j.mesh.position.z = j.z;
       j.mesh.rotation.y += dt * 2.5;
       j.mesh.position.y = j.y + Math.sin(time * 3 + j.z) * 0.08;
     }
@@ -524,8 +529,8 @@ function frame() {
     for (let i = jellies.length - 1; i >= 0; i--) if (jellies[i].z > 12) { scene.remove(jellies[i].mesh); jellies.splice(i, 1); }
 
     // 강변/거품 스크롤
-    for (const d of decos) { d.position.z += speed * dt; if (d.position.z > 15) d.position.z -= 200; }
-    for (const f of foams) { f.position.z += speed * dt * 1.05; if (f.position.z > 10) { f.position.z -= 180; f.position.x = (Math.random() - 0.5) * 14; } }
+    for (const d of decos) { d.position.z += effSpeed * dt; if (d.position.z > 15) d.position.z -= 200; }
+    for (const f of foams) { f.position.z += effSpeed * dt * 1.05; if (f.position.z > 10) { f.position.z -= 180; f.position.x = (Math.random() - 0.5) * 14; } }
 
     // 오리 세로 움직임
     if (jumping) {
@@ -601,13 +606,29 @@ function frame() {
     b.mesh.material.opacity = 0.8 * (1 - b.t / 0.7);
   }
 
-  // 문어: 둥실둥실 + 팬 휘두르기 (게임오버 시 돌진)
+  // 문어: 둥실둥실 + 회전하며 추격 + 가끔 후라이팬 휘두르기 (게임오버 시 돌진)
   const targetOZ = gameOver ? 1.5 : 3.2;
   octo.position.z += (targetOZ - octo.position.z) * Math.min(1, dt * (gameOver ? 4 : 1));
   octo.position.x += (duckX * 0.8 - octo.position.x) * Math.min(1, dt * 3);
   octo.position.y = 0.05 + Math.sin(time * 2.2) * 0.1;
   octo.rotation.z = Math.sin(time * 2.2) * 0.06;
-  octo.userData.pan.rotation.x = -0.7 + Math.sin(time * (gameOver ? 16 : 5)) * (gameOver ? 0.6 : 0.25);
+  // 회전하며 쫓아오기 — 얼굴과 분홍 앞치마가 번갈아 보임
+  if (started) octo.rotation.y += dt * (gameOver ? 3.5 : 1.0);
+  // 후라이팬 휘두르기: 평소엔 살랑, 가끔 크게 한 번, 게임오버 땐 마구
+  if (running) { nextSwing -= dt; if (nextSwing <= 0 && panSwingT > 0.6) { panSwingT = 0; nextSwing = 2.5 + Math.random() * 3.5; } }
+  if (panSwingT <= 0.6) panSwingT += dt;
+  const pan = octo.userData.pan;
+  if (gameOver) {
+    pan.rotation.x = -0.7 + Math.sin(time * 16) * 0.6;
+    pan.rotation.z = -0.3;
+  } else if (panSwingT < 0.6) {
+    const p = panSwingT / 0.6;
+    pan.rotation.x = -0.7 - Math.sin(p * Math.PI) * 1.7;       // 위로 크게 치켜들었다 내리치기
+    pan.rotation.z = -0.3 + Math.sin(p * Math.PI * 2) * 0.35;
+  } else {
+    pan.rotation.x = -0.7 + Math.sin(time * 5) * 0.22;
+    pan.rotation.z = -0.3;
+  }
   if (gameOver) duck.rotation.y += dt * 9;
 
   // 하늘 구름
