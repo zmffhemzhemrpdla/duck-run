@@ -222,17 +222,36 @@ const octo = new THREE.Group();
   // 커다란 둥근 외투막(머리 벌브) — 문어의 상징
   const mantle = S(0.92, skin); mantle.scale.set(1.04, 1.3, 1.0); mantle.position.y = 0.82;
   const mantleTop = S(0.52, skin); mantleTop.scale.set(1, 0.85, 1); mantleTop.position.y = 1.78;
-  // 툭 튀어나온 눈두덩 (문어 눈은 머리 밖으로 볼록)
-  const eyeBulgeL = S(0.3, skin); eyeBulgeL.scale.set(0.9, 1, 0.9); eyeBulgeL.position.set(0.44, 1.08, -0.46);
-  const eyeBulgeR = S(0.3, skin); eyeBulgeR.scale.set(0.9, 1, 0.9); eyeBulgeR.position.set(-0.44, 1.08, -0.46);
-  const eyeWL = S(0.17, white); eyeWL.position.set(0.47, 1.1, -0.7);
-  const eyeWR = S(0.17, white); eyeWR.position.set(-0.47, 1.1, -0.7);
-  const eyeL = S(0.08, dark); eyeL.position.set(0.48, 1.08, -0.85);
-  const eyeR = S(0.08, dark); eyeR.position.set(-0.48, 1.08, -0.85);
-  const glL = S(0.032, white); glL.position.set(0.53, 1.15, -0.9);
-  const glR = S(0.032, white); glR.position.set(-0.42, 1.15, -0.9);
-  const blushL = S(0.1, pink); blushL.scale.z = 0.4; blushL.position.set(0.66, 0.82, -0.55);
-  const blushR = S(0.1, pink); blushR.scale.z = 0.4; blushR.position.set(-0.66, 0.82, -0.55);
+  // 크고 동글동글한 귀여운 눈 (얼굴에 딱 붙은 큰 눈 + 큰 눈동자 + 반짝임 2개)
+  const eyeParts = [];
+  for (const s of [1, -1]) {
+    const eyeW = S(0.2, white); eyeW.scale.set(1, 1.2, 0.55); eyeW.position.set(s * 0.34, 1.06, -0.76);
+    const pupil = S(0.115, dark); pupil.scale.set(1, 1.15, 0.5); pupil.position.set(s * 0.34, 1.03, -0.9);
+    const hiA = S(0.048, white); hiA.position.set(s * 0.34 + 0.05, 1.11, -0.97);
+    const hiB = S(0.026, white); hiB.position.set(s * 0.34 - 0.045, 0.97, -0.96);
+    eyeParts.push(eyeW, pupil, hiA, hiB);
+  }
+  // 방긋 미소
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 14, Math.PI), dark);
+  smile.position.set(0, 0.86, -0.99);
+  smile.rotation.z = Math.PI;
+  const blushL = S(0.1, pink); blushL.scale.z = 0.4; blushL.position.set(0.62, 0.85, -0.66);
+  const blushR = S(0.1, pink); blushR.scale.z = 0.4; blushR.position.set(-0.62, 0.85, -0.66);
+
+  // 하얀 셰프 모자 (토크) — 살짝 삐딱하게
+  const hat = new THREE.Group();
+  const hatMat = new THREE.MeshLambertMaterial({ color: 0xfffdf6 });
+  const hatBand = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.54, 0.22, 18), new THREE.MeshLambertMaterial({ color: 0xf0ece0 }));
+  hatBand.position.y = 0;
+  const hatBody = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.48, 0.45, 18), hatMat);
+  hatBody.position.y = 0.3;
+  hat.add(hatBand, hatBody);
+  for (const [hx, hz, hr] of [[0, 0, 0.3], [0.24, 0.1, 0.22], [-0.22, -0.06, 0.23], [0.05, -0.22, 0.2], [-0.08, 0.22, 0.2]]) {
+    const puff = S(hr, hatMat); puff.scale.y = 0.8; puff.position.set(hx, 0.55, hz);
+    hat.add(puff);
+  }
+  hat.position.set(0.08, 2.12, 0.05);
+  hat.rotation.z = -0.14;
 
   // 물 위로 살짝 드러난 통통하게 말린 팔 끝 (촉수 아님 — 둥글게 감긴 팔의 윗부분)
   const coilPositions = [
@@ -246,13 +265,28 @@ const octo = new THREE.Group();
     octo.add(coil, tip);
   }
 
-  // 분홍 앞치마 (오리를 향한 쪽 = -z)
-  const apron = new THREE.Mesh(new THREE.SphereGeometry(0.94, 16, 14, 0, Math.PI), new THREE.MeshLambertMaterial({ color: 0xffb6c8 }));
-  apron.scale.set(0.82, 0.9, 0.7);
-  apron.rotation.y = Math.PI;
-  apron.position.set(0, 0.5, -0.12);
-  const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.26, 0.06), new THREE.MeshLambertMaterial({ color: 0xff9db8 }));
-  pocket.position.set(0, 0.45, -0.82);
+  // 분홍 앞치마 — 진짜 앞치마 형태 (가슴받이 + 몸을 감싸는 치마폭 + 목끈 + 허리 리본)
+  const apronMat = new THREE.MeshLambertMaterial({ color: 0xffc9de, side: THREE.DoubleSide });
+  const apronDark = new THREE.MeshLambertMaterial({ color: 0xee7fae });
+  // 치마폭: 몸 앞면(-z)을 넓게 감싸며 아래로 퍼지는 원통 조각
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.99, 1.34, 1.05, 20, 1, true, Math.PI - 1.3, 2.6), apronMat);
+  skirt.position.set(0, 0.32, 0);
+  // 가슴받이(bib): 눈 바로 아래 가슴을 넓게 덮는 판 + 흰 테두리
+  const bib = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.72, 0.07), apronMat);
+  bib.position.set(0, 0.42, -0.93);
+  bib.rotation.x = 0.08;
+  // 목끈: 목둘레를 도는 얇은 고리
+  const neckStrap = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.028, 8, 24), apronDark);
+  neckStrap.position.y = 1.5;
+  neckStrap.rotation.x = Math.PI / 2;
+  // 허리 리본 (등 뒤 — 회전할 때 보이는 포인트)
+  const bowKnot = S(0.08, apronDark); bowKnot.position.set(0, 0.75, 0.92);
+  const bowL = S(0.13, apronDark); bowL.scale.set(1.3, 0.7, 0.5); bowL.position.set(0.19, 0.81, 0.94);
+  const bowR = S(0.13, apronDark); bowR.scale.set(1.3, 0.7, 0.5); bowR.position.set(-0.19, 0.81, 0.94);
+  // 앞치마 주머니
+  const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.06), apronDark);
+  pocket.position.set(0, 0.28, -1.0);
+  pocket.rotation.x = 0.1;
   // 후라이팬 팔
   const arm = S(0.16, skin); arm.position.set(0.85, 0.85, -0.3);
   const panG = new THREE.Group();
@@ -265,7 +299,7 @@ const octo = new THREE.Group();
   panG.position.set(1.1, 1.25, -0.35);
   panG.rotation.set(-0.7, 0, -0.3);
   const arm2 = S(0.16, skin); arm2.position.set(-0.85, 0.68, -0.2);
-  octo.add(mantle, mantleTop, eyeBulgeL, eyeBulgeR, eyeWL, eyeWR, eyeL, eyeR, glL, glR, blushL, blushR, apron, pocket, arm, panG, arm2);
+  octo.add(mantle, mantleTop, ...eyeParts, smile, blushL, blushR, hat, skirt, bib, neckStrap, bowKnot, bowL, bowR, pocket, arm, panG, arm2);
   octo.userData.pan = panG;
 }
 octo.scale.setScalar(0.8);
@@ -492,6 +526,7 @@ if (sessionStorage.getItem('duckrun-skip')) { sessionStorage.removeItem('duckrun
 window.__dbg = () => ({ started, gameOver, jellyCount, lane, colorIdx, fast: (colorIdx === 1 || colorIdx === 3), speed: +speed.toFixed(1), effSpeed: +(speed * ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1)).toFixed(1), jumping, diving, flying, jumpY: +jumpY.toFixed(2), baseY: +baseY.toFixed(2), octoRotY: +octo.rotation.y.toFixed(2), panX: +octo.userData.pan.rotation.x.toFixed(2) });
 window.__setColor = i => { colorIdx = i % DUCK_COLORS.length; duckMats.body.color.set(DUCK_COLORS[colorIdx]); duckMats.wing.color.set(DUCK_COLORS[colorIdx]).multiplyScalar(0.92); };
 window.__swing = () => { panSwingT = 0; };
+window.__pose = (ry, panx) => { octo.rotation.y = ry; if (panx != null) octo.userData.pan.rotation.x = panx; renderer.render(scene, camera); };
 window.__grant = n => { for (let i = 0; i < n; i++) grantJelly(); };
 
 // ---------- 메인 루프 ----------
