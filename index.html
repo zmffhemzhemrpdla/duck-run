@@ -49,13 +49,16 @@
 <div id="txtJump" class="headtxt">짜암푸!</div>
 <div id="txtDive" class="headtxt">보글보글</div>
 <div id="txtYum" class="headtxt">오이시이네~</div>
+<div id="toast" style="position:fixed; bottom:22%; left:50%; transform:translateX(-50%); background:rgba(40,50,70,.82); color:#eef4ff; border-radius:14px; padding:10px 20px; font-size:16px; font-weight:700; opacity:0; transition:opacity .3s; z-index:11; pointer-events:none; white-space:nowrap;"></div>
+<div id="flash" style="position:fixed; inset:0; background:#fff; opacity:0; transition:opacity .18s; z-index:8; pointer-events:none;"></div>
 
 <div id="splash">
   <div class="card">
     <h1>🦆 꽥꽥 런</h1>
     <p class="sub">문어 셰프의 후라이팬을 피해 도망쳐요!</p>
     <div class="help" id="helpBox"></div>
-    <button id="startBtn" class="bigbtn" disabled>불러오는 중…</button>
+    <button id="startPeace" class="bigbtn" disabled>불러오는 중…</button><br>
+    <button id="startKowai" class="bigbtn" style="background:#5c6e94; box-shadow:0 4px 0 #3f4d6b; margin-top:12px;" disabled>불러오는 중…</button>
   </div>
 </div>
 
@@ -65,7 +68,8 @@
     <p class="sub">문어 셰프에게 붙잡혔어요…</p>
     <div id="overScore">⭐ 0</div>
     <p class="sub" id="overBest"></p>
-    <button id="retryBtn" class="bigbtn">다시 도망치기</button>
+    <button id="retryBtn" class="bigbtn">다시 도망치기</button><br>
+    <button id="modeBtn" class="bigbtn" style="background:#8a9ab0; box-shadow:0 4px 0 #63718a; margin-top:12px; font-size:16px; padding:10px 32px;">모드 바꾸기</button>
   </div>
 </div>
 
@@ -95,7 +99,8 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(0xbfe3f7);
 document.body.appendChild(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 300);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa99, 1.05));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x88aa99, 1.05);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d8, 0.85);
 sun.position.set(30, 60, 20);
 scene.add(sun);
@@ -110,8 +115,9 @@ const water = new THREE.Mesh(new THREE.PlaneGeometry(16, 300), new THREE.MeshLam
 water.rotation.x = -Math.PI / 2;
 water.position.set(0, 0, -90);
 scene.add(water);
+const bankMat = new THREE.MeshLambertMaterial({ color: 0xa8d18a });
 for (const side of [-1, 1]) {
-  const bank = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshLambertMaterial({ color: 0xa8d18a }));
+  const bank = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), bankMat);
   bank.rotation.x = -Math.PI / 2;
   bank.position.set(side * 23, 0.02, -90);
   scene.add(bank);
@@ -154,8 +160,9 @@ for (let z = 0; z > -200; z -= 7) {
 }
 // 하늘 구름
 const skyClouds = [];
+const skyCloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
 {
-  const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
+  const m = skyCloudMat;
   for (let i = 0; i < 7; i++) {
     const g = new THREE.Group();
     for (let j = 0; j < 3; j++) {
@@ -367,6 +374,29 @@ function makeBridge() {
 const obstacles = []; // {type, lane, mesh, z}
 const jellies = [];   // {lane, mesh, z, y, cloud}
 
+// ---------- 모드 / 폭풍 (코와이 전용) ----------
+let mode = 'peace';
+let stormLevel = 0, nextFlash = 1e9;
+const STORM_MAX = 4;
+const SKY_COLS = [0xbfe3f7, 0xa6c6de, 0x87a6c2, 0x6884a3, 0x4d6683].map(c => new THREE.Color(c));
+const WATER_COLS = [0x7fc4e8, 0x6fb0d4, 0x5f9abc, 0x4f82a2, 0x3f6a88].map(c => new THREE.Color(c));
+const BANK_COLS = [0xa8d18a, 0x97be7d, 0x85aa70, 0x739663, 0x628356].map(c => new THREE.Color(c));
+const CLOUD_COLS = [0xffffff, 0xe8e8ea, 0xd0d0d6, 0xb0b2bc, 0x8f93a2].map(c => new THREE.Color(c));
+const STORM_MSGS = ['🌥️ 하늘이 어두워진다…', '🌧️ 비가 쏟아진다! 더 빨라진다!', '⛈️ 폭풍우다!!', '🌩️ 대폭풍!! 힘내!'];
+const skyCur = SKY_COLS[0].clone();
+// 빗줄기
+const rain = [];
+{
+  const rainMat = new THREE.MeshBasicMaterial({ color: 0xcfe4f2, transparent: true, opacity: 0.5 });
+  const rainGeo = new THREE.PlaneGeometry(0.035, 0.7);
+  for (let i = 0; i < 130; i++) {
+    const r = new THREE.Mesh(rainGeo, rainMat);
+    r.position.set((Math.random() - 0.5) * 20, 1 + Math.random() * 11, 9 - Math.random() * 50);
+    r.visible = false;
+    scene.add(r); rain.push(r);
+  }
+}
+
 // ---------- 게임 상태 ----------
 let started = false, gameOver = false;
 let speed = 11, traveled = 0, time = 0;
@@ -386,7 +416,9 @@ let distSinceSpawn = 0, nextGap = 10;
 const SPAWN_Z = -120;
 function spawnPattern() {
   const r = Math.random();
-  if (flying || r < 0.45) {
+  const jellyP = mode === 'kowai' ? 0.35 : 0.45;
+  const rockP = mode === 'kowai' ? 0.74 : 0.78;
+  if (flying || r < jellyP) {
     // 젤리 줄: 1개 또는 4~8개 연속
     const n = Math.random() < 0.35 ? 1 : 4 + Math.floor(Math.random() * 5);
     const jl = Math.floor(Math.random() * 3);
@@ -399,9 +431,10 @@ function spawnPattern() {
     }
     return n * 2.6;
   }
-  if (r < 0.78) {
-    // 돌: 1~2개 레인
-    const count = Math.random() < 0.6 ? 1 : 2;
+  if (r < rockP) {
+    // 돌: 피스 1~2개, 코와이 1~3개 레인
+    const roll = Math.random();
+    const count = mode === 'kowai' ? (roll < 0.4 ? 1 : roll < 0.82 ? 2 : 3) : (roll < 0.6 ? 1 : 2);
     const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
     for (const l of ls) {
       const mesh = makeRock();
@@ -489,10 +522,26 @@ function grantJelly() {
   if (jellyCount % 10 === 0) fxYum = time;
   if (jellyCount % 50 === 0) { flying = true; flyT = FLY_TIME; flyBadge.style.display = 'block'; }
   if (jellyCount % 100 === 0) {
-    colorIdx = (colorIdx + 1) % DUCK_COLORS.length;
-    duckMats.body.color.set(DUCK_COLORS[colorIdx]);
-    duckMats.wing.color.set(DUCK_COLORS[colorIdx]).multiplyScalar(0.92);
+    if (mode === 'kowai') {
+      // 오리 변신 대신 폭풍이 거세지며 가속
+      if (stormLevel < STORM_MAX) stormLevel++;
+      if (stormLevel >= 2 && nextFlash > 1e8) nextFlash = time + 2;
+      toast(STORM_MSGS[stormLevel - 1]);
+    } else {
+      colorIdx = (colorIdx + 1) % DUCK_COLORS.length;
+      duckMats.body.color.set(DUCK_COLORS[colorIdx]);
+      duckMats.wing.color.set(DUCK_COLORS[colorIdx]).multiplyScalar(0.92);
+    }
   }
+}
+const toastEl = document.getElementById('toast');
+const flashEl = document.getElementById('flash');
+let toastTimer = null;
+function toast(msg, dur = 2600) {
+  toastEl.textContent = msg;
+  toastEl.style.opacity = 1;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.style.opacity = 0; }, dur);
 }
 
 // ---------- 게임오버 ----------
@@ -506,24 +555,31 @@ function endGame() {
 }
 function restart() { sessionStorage.setItem('duckrun-skip', '1'); location.reload(); }
 document.getElementById('retryBtn').addEventListener('click', restart);
+document.getElementById('modeBtn').addEventListener('click', () => location.reload()); // 스킵 플래그 없이 → 모드 선택 화면
 
 // ---------- 시작 ----------
-document.getElementById('helpBox').innerHTML = IS_TOUCH
-  ? '👈👉 좌우 스와이프 — 길 옮기기<br>👆 위로 스와이프 — 점프 (돌을 넘어요)<br>👇 아래로 스와이프 — 잠수 (나무다리 밑으로!)<br>⭐ 별젤리 10개마다 "오이시이네~"<br>☁️ 50개마다 10초 비행 · 💯 100개마다 오리 변신!'
-  : '⬅️➡️ (A/D) — 길 옮기기<br>⬆️ / Space — 점프 (돌을 넘어요)<br>⬇️ / S — 잠수 (나무다리 밑으로!)<br>⭐ 별젤리 10개마다 "오이시이네~"<br>☁️ 50개마다 10초 비행 · 💯 100개마다 오리 변신!';
-const startBtn = document.getElementById('startBtn');
-function startGame() {
+document.getElementById('helpBox').innerHTML = (IS_TOUCH
+  ? '👈👉 좌우 스와이프 — 길 옮기기<br>👆 위로 스와이프 — 점프 (돌을 넘어요)<br>👇 아래로 스와이프 — 잠수 (나무다리 밑으로!)<br>⭐ 별젤리 10개마다 "오이시이네~" · ☁️ 50개마다 10초 비행'
+  : '⬅️➡️ (A/D) — 길 옮기기<br>⬆️ / Space — 점프 (돌을 넘어요)<br>⬇️ / S — 잠수 (나무다리 밑으로!)<br>⭐ 별젤리 10개마다 "오이시이네~" · ☁️ 50개마다 10초 비행')
+  + '<br><br>🕊️ <b>피스</b> — 평화로운 강. 100개마다 오리 변신!<br>⛈️ <b>코와이</b> — 더 빠르고 장애물 가득! 100개마다 폭풍이 거세져요';
+function startGame(m) {
+  mode = m === 'kowai' ? 'kowai' : 'peace';
+  sessionStorage.setItem('duckrun-mode', mode);
+  if (mode === 'kowai') speed = 14;
   document.getElementById('splash').style.display = 'none';
   started = true;
 }
-startBtn.addEventListener('click', startGame);
-startBtn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+for (const [id, m, label] of [['startPeace', 'peace', '🕊️ 피스 — 평화로운 강'], ['startKowai', 'kowai', '⛈️ 코와이 — 폭풍 속 질주!']]) {
+  const btn = document.getElementById(id);
+  btn.addEventListener('click', () => startGame(m));
+  btn.addEventListener('touchend', e => { e.preventDefault(); startGame(m); });
+  btn.disabled = false;
+  btn.textContent = label;
+}
 window.__gameLoaded = true;
-startBtn.disabled = false;
-startBtn.textContent = '도망 시작!';
-if (sessionStorage.getItem('duckrun-skip')) { sessionStorage.removeItem('duckrun-skip'); startGame(); }
+if (sessionStorage.getItem('duckrun-skip')) { sessionStorage.removeItem('duckrun-skip'); startGame(sessionStorage.getItem('duckrun-mode') || 'peace'); }
 
-window.__dbg = () => ({ started, gameOver, jellyCount, lane, colorIdx, fast: (colorIdx === 1 || colorIdx === 3), speed: +speed.toFixed(1), effSpeed: +(speed * ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1)).toFixed(1), jumping, diving, flying, jumpY: +jumpY.toFixed(2), baseY: +baseY.toFixed(2), octoRotY: +octo.rotation.y.toFixed(2), panX: +octo.userData.pan.rotation.x.toFixed(2) });
+window.__dbg = () => ({ started, gameOver, mode, stormLevel, jellyCount, lane, colorIdx, speed: +speed.toFixed(1), effSpeed: +(speed * (mode === 'kowai' ? 1 + stormLevel * 0.12 : ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1))).toFixed(1), jumping, diving, flying, jumpY: +jumpY.toFixed(2), baseY: +baseY.toFixed(2), octoRotY: +octo.rotation.y.toFixed(2), panX: +octo.userData.pan.rotation.x.toFixed(2) });
 window.__setColor = i => { colorIdx = i % DUCK_COLORS.length; duckMats.body.color.set(DUCK_COLORS[colorIdx]); duckMats.wing.color.set(DUCK_COLORS[colorIdx]).multiplyScalar(0.92); };
 window.__swing = () => { panSwingT = 0; };
 window.__pose = (ry, panx) => { octo.rotation.y = ry; if (panx != null) octo.userData.pan.rotation.x = panx; renderer.render(scene, camera); };
@@ -539,17 +595,21 @@ function frame() {
 
   const running = started && !gameOver;
   if (running) {
-    speed = Math.min(24, speed + dt * 0.12);
-    // 오리 색에 따른 속도: 분홍(1)·하늘(3)일 때만 1.25배, 나머지(노랑·보라·연두)는 기본
-    const effSpeed = speed * ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1);
+    speed = Math.min(mode === 'kowai' ? 30 : 24, speed + dt * (mode === 'kowai' ? 0.16 : 0.12));
+    // 속도 보정 — 피스: 오리가 분홍(1)·하늘(3)일 때 1.25배 / 코와이: 폭풍 단계마다 +12%
+    const effSpeed = speed * (mode === 'kowai'
+      ? 1 + stormLevel * 0.12
+      : ((colorIdx === 1 || colorIdx === 3) ? 1.25 : 1));
     traveled += effSpeed * dt;
 
-    // 스폰
+    // 스폰 (코와이는 장애물 간격이 더 촘촘)
     distSinceSpawn += effSpeed * dt;
     if (distSinceSpawn >= nextGap) {
       const len = spawnPattern();
       distSinceSpawn = 0;
-      nextGap = len + 13 + Math.random() * 14 + effSpeed * 0.35;
+      nextGap = len + (mode === 'kowai'
+        ? 8 + Math.random() * 8 + effSpeed * 0.28
+        : 13 + Math.random() * 14 + effSpeed * 0.35);
     }
 
     // 오브젝트 이동
@@ -667,7 +727,30 @@ function frame() {
   if (gameOver) duck.rotation.y += dt * 9;
 
   // 하늘 구름
-  for (const c of skyClouds) { c.position.x += c.userData.v * dt; if (c.position.x > 45) c.position.x = -45; }
+  for (const c of skyClouds) { c.position.x += c.userData.v * dt * (1 + stormLevel); if (c.position.x > 45) c.position.x = -45; }
+
+  // 폭풍 연출 (코와이): 하늘·물·강변·구름이 서서히 어두워지고 비가 내림
+  const lerpK = Math.min(1, dt * 0.7);
+  skyCur.lerp(SKY_COLS[stormLevel], lerpK);
+  renderer.setClearColor(skyCur);
+  scene.fog.color.copy(skyCur);
+  water.material.color.lerp(WATER_COLS[stormLevel], lerpK);
+  bankMat.color.lerp(BANK_COLS[stormLevel], lerpK);
+  skyCloudMat.color.lerp(CLOUD_COLS[stormLevel], lerpK);
+  hemi.intensity += ((1.05 - stormLevel * 0.09) - hemi.intensity) * lerpK;
+  const rainCount = mode === 'kowai' ? Math.min(rain.length, stormLevel * 33) : 0;
+  for (let i = 0; i < rain.length; i++) {
+    const r = rain[i];
+    if (i >= rainCount) { r.visible = false; continue; }
+    r.visible = true;
+    r.position.y -= 22 * dt;
+    if (r.position.y < 0.3) r.position.set((Math.random() - 0.5) * 20, 10 + Math.random() * 4, 9 - Math.random() * 50);
+  }
+  if (running && mode === 'kowai' && stormLevel >= 2 && time > nextFlash) {
+    flashEl.style.opacity = 0.4;
+    setTimeout(() => { flashEl.style.opacity = 0; }, 130);
+    nextFlash = time + 4 + Math.random() * 6;
+  }
 
   // 카메라
   camera.position.set(duckX * 0.45, 4.4 + baseY * 0.55, 8.2);
